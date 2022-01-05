@@ -24,7 +24,6 @@ from pyspark.sql.group import GroupedData
 from pyspark.sql.readwriter import DataFrameWriter
 
 
-# pylint: enable=too-many-instance-attributes
 class InventDataFrame(DataFrame):
     """Wrapper for pyspark.sql.DataFrame with metadata.
 
