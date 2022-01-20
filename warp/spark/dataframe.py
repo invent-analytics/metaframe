@@ -61,10 +61,12 @@ class InventDataFrame(DataFrame):
             "kwargs": []
         },
         "dropDuplicates": {
-            "kwargs": ["subset"]
+            "kwargs": ["subset"],
+            "dataframe_callback_if_not_found": lambda df: df.columns
         },
         "drop_duplicates": {
-            "kwargs": ["subset"]
+            "kwargs": ["subset"],
+            "dataframe_callback_if_not_found": lambda df: df.columns
         },
         "distinct": {
             "dataframe_callback_early": lambda df: df.columns
@@ -155,9 +157,11 @@ class InventDataFrame(DataFrame):
         primary_key = None
         operation = self.SET_PK_AFTER[callable_key]
 
+        # if an early callback is defined, call it!
         if "dataframe_callback_early" in operation:
             primary_key = operation["dataframe_callback_early"](df)
 
+        # if primary_key is not set, infer from args and kwargs
         if not primary_key:
             # first, get from args
             if len(args) == 1 and isinstance(args[0], list):
@@ -172,6 +176,10 @@ class InventDataFrame(DataFrame):
                         else:
                             primary_key.add(value)
             primary_key = list(primary_key)
+
+        # still not found? try dataframe_callback_if_not_found
+        if not primary_key and "dataframe_callback_if_not_found" in operation:
+            primary_key = operation["dataframe_callback_if_not_found"](df)
 
         if not primary_key:
             LOG.info(
