@@ -56,6 +56,9 @@ class InventDataFrame(DataFrame):
         },
         "drop_duplicates": {
             "kwargs": ["subset"]
+        },
+        "distinct": {
+            "dataframe_callback_early": lambda df: df.columns
         }
     }
 
@@ -140,25 +143,38 @@ class InventDataFrame(DataFrame):
         :return: InventDataFrame instance after primary key is set to metadata
         :rtype: InventDataFrame
         """
-        # first, get from args
-        if len(args) == 1 and isinstance(args[0], list):
-            args = args[0]
-        primary_key = set(args)
-        # build from kwargs if we don't have incoming argument from args
+        primary_key = None
+        operation = self.SET_PK_AFTER[callable_key]
+
+        if "dataframe_callback_early" in operation:
+            primary_key = operation["dataframe_callback_early"](df)
+
         if not primary_key:
-            for key, value in kwargs.items():
-                if key in self.SET_PK_AFTER[callable_key]["kwargs"]:
-                    if isinstance(value, (list, set, tuple)):
-                        primary_key.update(value)
-                    else:
-                        primary_key.add(value)
-        primary_key = list(primary_key)
+            # first, get from args
+            if len(args) == 1 and isinstance(args[0], list):
+                args = args[0]
+            primary_key = set(args)
+            # build from kwargs if we don't have incoming argument from args
+            if not primary_key:
+                for key, value in kwargs.items():
+                    if key in operation.get("kwargs", []):
+                        if isinstance(value, (list, set, tuple)):
+                            primary_key.update(value)
+                        else:
+                            primary_key.add(value)
+            primary_key = list(primary_key)
+
+        if not primary_key:
+            LOG.info(
+                "Could net set primary_key since it can't be inferred "
+                "for %s operation", callable_key
+            )
+            return df
 
         LOG.info(
             "Setting primary_key as %s after %s operation",
             primary_key, callable_key
         )
-
         df = df.df if isinstance(df, InventDataFrame) else df
         df = InventDataFrame(df, {**self.metadata, "primary_key": primary_key})
         return df
