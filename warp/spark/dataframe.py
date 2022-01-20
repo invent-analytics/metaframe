@@ -29,7 +29,16 @@ LOG = LoggerMixin().log
 
 
 class InventDataFrame(DataFrame):
-    """Wrapper for pyspark.sql.DataFrame with metadata.
+    """
+    Wrapper for pyspark.sql.DataFrame with metadata.
+
+    InventDataFrame supports updating `primary_key` information of metadata
+    after certain operations which guarantee that resulting dataframe is unique
+    in a particular level:
+
+        * groupBy and its alias groupby
+        * dropDuplicates and its alias drop_duplicates
+        * distinct
 
     :param df: Wrapped object. It is usually a DataFrame but it supports
         GroupedData and DataFrameWriter as well for compatibility.
