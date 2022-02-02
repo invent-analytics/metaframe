@@ -1,38 +1,34 @@
-# Copyright (C) Invent Analytics - All Rights Reserved
-# Unauthorized copying of this file, via any medium is strictly prohibited
-# Proprietary and confidential
 """
-================
-Invent DataFrame
-================
+=========
+MetaFrame
+=========
 
 Data structure to wrap simple pyspark.sql.DataFrame to use it with metadata.
 
 ::
-    from warp.spark.dataframe import InventDataFrame
+    from metaframe import MetaFrame
 
-    idf = InventDataFrame(df=df, metadata={"columns": ["a", "b"]})
-    idf = idf.withColumn("new_col", F.lit(1))
-    idf = idf.set_metadata(columns=["a", "b", "new_col"])
-    idf.show()
-    assert idf.metadata["columns"] == ["a", "b", "new_col"]
+    mf = MetaFrame(df=df, metadata={"columns": ["a", "b"]})
+    mf = mf.withColumn("new_col", F.lit(1))
+    mf = mf.set_metadata(columns=["a", "b", "new_col"])
+    mf.show()
+    assert mf.metadata["columns"] == ["a", "b", "new_col"]
 """
-from typing import Any, Callable, List, Optional, Tuple, Union, Dict
+import logging
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pyspark.sql import DataFrame
 from pyspark.sql.group import GroupedData
 from pyspark.sql.readwriter import DataFrameWriter
 
-from warp.core.logger import LoggerMixin
-
-LOG = LoggerMixin().log
+LOG = logging.getLogger(__name__)
 
 
-class InventDataFrame(DataFrame):
+class MetaFrame(DataFrame):
     """
     Wrapper for pyspark.sql.DataFrame with metadata.
 
-    InventDataFrame supports updating `primary_key` information of metadata
+    MetaFrame supports updating `primary_key` information of metadata
     after certain operations which guarantee that resulting dataframe is unique
     in a particular level:
 
@@ -47,37 +43,27 @@ class InventDataFrame(DataFrame):
     :type metadata: Optional[Dict]
     """
 
-    RETURNED_CLASSES = (
-        DataFrame,
-        GroupedData,
-        DataFrameWriter
-    )
+    RETURNED_CLASSES = (DataFrame, GroupedData, DataFrameWriter)
 
     SET_PK_AFTER = {
-        "groupBy": {
-            "kwargs": []
-        },
-        "groupby": {
-            "kwargs": []
-        },
+        "groupBy": {"kwargs": []},
+        "groupby": {"kwargs": []},
         "dropDuplicates": {
             "kwargs": ["subset"],
-            "dataframe_callback_if_not_found": lambda df: df.columns
+            "dataframe_callback_if_not_found": lambda df: df.columns,
         },
         "drop_duplicates": {
             "kwargs": ["subset"],
-            "dataframe_callback_if_not_found": lambda df: df.columns
+            "dataframe_callback_if_not_found": lambda df: df.columns,
         },
-        "distinct": {
-            "dataframe_callback_early": lambda df: df.columns
-        }
+        "distinct": {"dataframe_callback_early": lambda df: df.columns},
     }
 
     # pylint: disable=super-init-not-called
     def __init__(
-            self,
-            df: Union[DataFrame, GroupedData, DataFrameWriter],
-            metadata: Optional[Dict] = None
+        self,
+        df: Union[DataFrame, GroupedData, DataFrameWriter],
+        metadata: Optional[Dict] = None,
     ):
         self.df = df
         self.metadata = metadata or {}
@@ -112,7 +98,7 @@ class InventDataFrame(DataFrame):
 
     def _wrapper(self, func: Callable, callable_key: str) -> Callable:
         """Wrapper helper for pyspark methods. If the result of the method
-        is one of the classes listed, this returns an InventDataFrame instance
+        is one of the classes listed, this returns an MetaFrame instance
         with the returned object as df attribute and the same metadata. If not,
         it simply returns the result (e.g. ``.show()``).
 
@@ -121,22 +107,19 @@ class InventDataFrame(DataFrame):
         :return: Wrapped function
         :rtype: Callable
         """
+
         def wrapped(*args, **kwargs):
             result = func(*args, **kwargs)
             if isinstance(result, self.RETURNED_CLASSES):
-                result = InventDataFrame(result, self.metadata)
+                result = MetaFrame(result, self.metadata)
             if callable_key in self.SET_PK_AFTER:
-                result = self._set_pk_after(
-                    result, callable_key, *args, **kwargs)
+                result = self._set_pk_after(result, callable_key, *args, **kwargs)
             return result
+
         return wrapped
 
     def _set_pk_after(
-            self,
-            df: DataFrame,
-            callable_key: str,
-            *args: Tuple[Any],
-            **kwargs: Dict
+        self, df: DataFrame, callable_key: str, *args: Tuple[Any], **kwargs: Dict
     ) -> DataFrame:
         """
         Protected helper method to set primary key after applying operations
@@ -151,8 +134,8 @@ class InventDataFrame(DataFrame):
         :type args: Tuple[Any]
         :param kwargs: keyword arguments of callable
         :type kwargs: Dict
-        :return: InventDataFrame instance after primary key is set to metadata
-        :rtype: InventDataFrame
+        :return: MetaFrame instance after primary key is set to metadata
+        :rtype: MetaFrame
         """
         primary_key = None
         operation = self.SET_PK_AFTER[callable_key]
@@ -183,27 +166,24 @@ class InventDataFrame(DataFrame):
 
         if not primary_key:
             LOG.info(
-                "Could net set primary_key since it can't be inferred "
-                "for %s operation", callable_key
+                "Could net set primary_key since it can't be inferred " "for %s operation",
+                callable_key,
             )
             return df
 
-        LOG.info(
-            "Setting primary_key as %s after %s operation",
-            primary_key, callable_key
-        )
-        df = df.df if isinstance(df, InventDataFrame) else df
-        df = InventDataFrame(df, {**self.metadata, "primary_key": primary_key})
+        LOG.info("Setting primary_key as %s after %s operation", primary_key, callable_key)
+        df = df.df if isinstance(df, MetaFrame) else df
+        df = MetaFrame(df, {**self.metadata, "primary_key": primary_key})
         return df
 
     def set_metadata(self, **params) -> DataFrame:
         """
-        Sets metadata attribute, returns InventDataFrame with the new metadata
+        Sets metadata attribute, returns MetaFrame with the new metadata
 
         :return: Object with changed metadata
-        :rtype: InventDataFrame
+        :rtype: MetaFrame
         """
-        return InventDataFrame(self.df, {**self.metadata, **params})
+        return MetaFrame(self.df, {**self.metadata, **params})
 
     @property
     def primary_key(self) -> Optional[List[str]]:
