@@ -26,7 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install setuptools wheel
-        pip install flake8 tox
+        pip install flake8 tox tox-gh-actions
         pip install .
     - name: Lint
       run: |
