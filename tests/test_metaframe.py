@@ -4,9 +4,9 @@ Unit tests
 
 import unittest
 
-from metaframe.metaframe import MetaFrame
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
+from metaframe import MetaFrame
 
 
 class TestMetaFrame(unittest.TestCase):
